@@ -553,7 +553,7 @@ class ComputeLoss:
         return tcls, tbox, indices, anch
 
 
-def create_soft_label_targets(targets, selected_tcls, num_of_targets):
+def create_soft_label_targets(targets, selected_cls, num_of_targets):
     negative = (1.0 - targets[:, 6]) * 0.5
     positive = 1.0 - negative
     transformed_t = negative.unsqueeze(1).repeat(1, 6)
@@ -619,13 +619,13 @@ class ComputeLossOTA:
                 # Classification
                 selected_tcls = targets[i][:, 1].long()
                 if self.nc > 1:  # cls loss (only if multiple classes)
-                    t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+                    #t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
                     soft_label_targets = create_soft_label_targets(targets[i], selected_tcls, n)
-                    print("LXH ComputeLossOTA target shape:", t.shape, len(p), len(targets), targets[i].shape)
-                    t[range(n), selected_tcls] = self.cp
-                    print(soft_label_targets)
-                    print(t)
-                    lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+                    #print("LXH ComputeLossOTA target shape:", t.shape, len(p), len(targets), targets[i].shape)
+                    #t[range(n), selected_tcls] = self.cp
+                    #print(soft_label_targets)
+                    #print(t)
+                    lcls += self.BCEcls(ps[:, 5:], soft_label_targets)  # BCE
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
