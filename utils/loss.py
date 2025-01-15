@@ -625,7 +625,7 @@ class ComputeLossOTA:
                     t[range(n), selected_tcls] = self.cp
                     #print(soft_label_targets)
                     #print(t)
-                    lcls += self.BCEcls(ps[:, 5:], soft_label_targets)  # BCE
+                    lcls += self.BCEcls(ps[:, 5:], t)  # BCE
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
