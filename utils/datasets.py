@@ -493,6 +493,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                             segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in l]  # (cls, xy1...)
                             l = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
                         l = np.array(l, dtype=np.float32)
+                        l[:, 5] = np.clip(l[:, 5], 0.0, 1.0)
                     if len(l):
                         assert l.shape[1] == 6, 'labels require 6 columns each'
                         assert (l >= 0).all(), 'negative labels'
