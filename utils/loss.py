@@ -619,10 +619,10 @@ class ComputeLossOTA:
                 # Classification
                 selected_tcls = targets[i][:, 1].long()
                 if self.nc > 1:  # cls loss (only if multiple classes)
-                    #t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
-                    soft_label_targets = create_soft_label_targets(targets[i], selected_tcls, n)
+                    t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+                    #soft_label_targets = create_soft_label_targets(targets[i], selected_tcls, n)
                     #print("LXH ComputeLossOTA target shape:", t.shape, len(p), len(targets), targets[i].shape)
-                    #t[range(n), selected_tcls] = self.cp
+                    t[range(n), selected_tcls] = self.cp
                     #print(soft_label_targets)
                     #print(t)
                     lcls += self.BCEcls(ps[:, 5:], soft_label_targets)  # BCE

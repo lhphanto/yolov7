@@ -600,6 +600,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         break
                 labels = pastein(img, labels, sample_labels, sample_images, sample_masks)
 
+        prob = 0.1 * random.random() + 0.85 #filter out threshold 0.85 - 0.95
+        labels = labels[labels[:, 5] > prob]
         nL = len(labels)  # number of labels
         if nL:
             labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
