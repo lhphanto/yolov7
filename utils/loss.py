@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy
+from utils.general import wh_iou, bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy
 from utils.torch_utils import is_parallel
 
 
@@ -566,7 +566,7 @@ class ComputeLossOTA:
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
-
+        
         # Focal loss
         g = h['fl_gamma']  # focal loss gamma
         if g > 0:
@@ -814,9 +814,12 @@ class ComputeLossOTA:
             t = targets * gain
             if nt:
                 # Matches
-                r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-                j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
-                # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
+                #r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
+                #j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
+                #print("LXH")
+                #print(anchors.shape)
+                #print(t.shape)
+                j = wh_iou(anchors, t[:, :, 4:6]) > self.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
                 t = t[j]  # filter
 
                 # Offsets
