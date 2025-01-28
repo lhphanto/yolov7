@@ -63,7 +63,7 @@ def exif_size(img):
 
 
 def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
-                      rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix=''):
+                      rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix='', weighted_sample=False):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
         dataset = LoadImagesAndLabels(path, imgsz, batch_size,
@@ -79,7 +79,10 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=Fa
 
     batch_size = min(batch_size, len(dataset))
     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
+    if weighted_sample:
+      sampler = torch.utils.data.WeightedRandomSampler(dataset.sample_weights, len(dataset.sample_weights))
+    else:
+      sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
     # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
     dataloader = loader(dataset,
@@ -349,7 +352,6 @@ def img2label_paths(img_paths):
     sa, sb = os.sep + 'images' + os.sep, os.sep + 'labels' + os.sep  # /images/, /labels/ substrings
     return ['txt'.join(x.replace(sa, sb, 1).rsplit(x.split('.')[-1], 1)) for x in img_paths]
 
-
 class LoadImagesAndLabels(Dataset):  # for training/testing
     def __init__(self, path, img_size=640, batch_size=16, augment=False, hyp=None, rect=False, image_weights=False,
                  cache_images=False, single_cls=False, stride=32, pad=0.0, prefix=''):
@@ -361,7 +363,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.mosaic = self.augment and not self.rect  # load 4 images at a time into a mosaic (only during training)
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
-        self.path = path        
+        self.path = path
+        self.sample_weights = None    
         #self.albumentations = Albumentations() if augment else None
 
         try:
@@ -409,6 +412,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.labels = list(labels)
         self.shapes = np.array(shapes, dtype=np.float64)
         self.img_files = list(cache.keys())  # update
+        self._calculate_weights()
+
         self.label_files = img2label_paths(cache.keys())  # update
         if single_cls:
             for x in self.labels:
@@ -466,6 +471,30 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     gb += self.imgs[i].nbytes
                 pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB)'
             pbar.close()
+
+    def _calculate_weights(self):
+      counts = {'denoised':0, 'wbp':0, 'ctf':0}
+
+      for i in range(len(self.img_files)):
+        if self.img_files[i].endswith("denoised.png"):
+          counts['denoised'] += 1
+        elif self.img_files[i].endswith("wbp.png"):
+          counts['wbp'] += 1
+        elif self.img_files[i].endswith("ctfdeconvolved.png"):
+          counts['ctf'] += 1
+      denominator = counts['denoised']
+      for k in counts.keys():
+        counts[k] = counts[k] / denominator
+
+      self.sample_weights = []
+      for i in range(len(self.img_files)):
+        if self.img_files[i].endswith("denoised.png"):
+          #self.weights.append(1.0 / counts['denoised'])
+          self.sample_weights.append(1.0 / counts['denoised'])
+        elif self.img_files[i].endswith("wbp.png"):
+          self.sample_weights.append(0.2 / counts['wbp'])
+        elif self.img_files[i].endswith("ctfdeconvolved.png"):
+          self.sample_weights.append(0.4 / counts['ctf'])
 
     def cache_labels(self, path=Path('./labels.cache'), prefix=''):
         # Cache dataset labels, check images and read shapes
